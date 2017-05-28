@@ -1,14 +1,27 @@
 describe('Aop', function () {
   var targetObj,
-      executionPoints; // array have excution events
+      executionPoints, // array have excution events
+      argPassingAdvice, // advice to inject parameters to target
+      argsToTarget, // arguments
+      targetFnReturn;
 
   beforeEach(function () {
     targetObj = {
       targetFn: function () {
+        targetFnReturn = 3;
         executionPoints.push('targetFn');
+        argsToTarget = Array.prototype.slice.call(arguments, 0);
+        return targetFnReturn;
       }
     };
+
     executionPoints = [];
+
+    argPassingAdvice = function (targetInfo) {
+      return targetInfo.fn.apply(this, targetInfo.args);
+    }
+
+    argsToTarget = [];
   });
 
   describe('Aop.around(fnName, advice, fnObj)', function () {
@@ -57,6 +70,33 @@ describe('Aop', function () {
         'wrappingAdvice - End inner',
         'wrappingAdvice - End outer'
       ]);
+    });
+
+    it('advice can pass parameters to target', function () {
+      Aop.around('targetFn', argPassingAdvice, targetObj);
+      targetObj.targetFn('a', 'b');
+      expect(argsToTarget).toEqual(['a', 'b']);
+    });
+
+    it('can reference targets return value', function () {
+      Aop.around('targetFn', argPassingAdvice, targetObj);
+      var returnedValue = targetObj.targetFn();
+      expect(returnedValue).toBe(targetFnReturn);
+    });
+
+    it('concern object\'s context', function () {
+      var Target = function () {
+        var self = this;
+        this.targetFn = function () {
+          expect(this).toBe(self);
+        }
+      }
+
+      var targetInstance = new Target();
+      var spyOnInstance = spyOn(targetInstance, 'targetFn').and.callThrough();
+      Aop.around('targetFn', argPassingAdvice, targetInstance);
+      targetInstance.targetFn();
+      expect(spyOnInstance).toHaveBeenCalled();
     });
   });
 });
