@@ -3,7 +3,13 @@ describe('Aop', function () {
       executionPoints, // array have excution events
       argPassingAdvice, // advice to inject parameters to target
       argsToTarget, // arguments
-      targetFnReturn;
+      targetFnReturn,
+      Target = function () {
+        var self = this;
+        this.targetFn = function () {
+          expect(this).toBe(self);
+        }
+      };
 
   beforeEach(function () {
     targetObj = {
@@ -85,13 +91,6 @@ describe('Aop', function () {
     });
 
     it('concern object\'s context', function () {
-      var Target = function () {
-        var self = this;
-        this.targetFn = function () {
-          expect(this).toBe(self);
-        }
-      }
-
       var targetInstance = new Target();
       var spyOnInstance = spyOn(targetInstance, 'targetFn').and.callThrough();
       Aop.around('targetFn', argPassingAdvice, targetInstance);
@@ -99,4 +98,38 @@ describe('Aop', function () {
       expect(spyOnInstance).toHaveBeenCalled();
     });
   });
+
+  describe('Aop.next.call(context, targetInfo)', function () {
+    var advice = function (targetInfo) {
+      return Aop.next.call(this, targetInfo);
+    };
+    var originalFn;
+    beforeEach(function () {
+      originalFn = targetObj.targetFn;
+      Aop.around('targetFn', advice, targetObj);
+    });
+
+    it('call function in targetInfo.fn', function () {
+      targetObj.targetFn();
+      expect(executionPoints).toEqual(['targetFn']);
+    });
+
+    it('pass arguments to targetInfo.args', function () {
+      targetObj.targetFn('a', 'b');
+      expect(argsToTarget).toEqual(['a', 'b']);
+    });
+
+    it('return value from targetInfo.fn', function () {
+      var returned = targetObj.targetFn();
+      expect(returned).toEqual(targetFnReturn);
+    });
+
+    it('concern object\'s context', function () {
+      var targetInstance = new Target();
+      var spyOnInstance = spyOn(targetInstance, 'targetFn').and.callThrough();
+      Aop.around('targetFn', advice, targetInstance);
+      targetInstance.targetFn();
+      expect(spyOnInstance).toHaveBeenCalled();
+    });
+  })
 });
